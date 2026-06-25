@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+*.bin
+*.enc
+manifest.json
+localstack-data/
+output.json
