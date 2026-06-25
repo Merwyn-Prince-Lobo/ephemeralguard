@@ -13,16 +13,16 @@ def generate_synthetic_dump(path: str, size_gb: float = 1.0):
         for i in range(total_pages):
             r = random.random()
 
-            if r < 0.40:
+            if r < 0.10:
                 # zero page — should be skipped by triage
                 page = b'\x00' * PAGE
 
-            elif r < 0.70:
+            elif r < 0.40:
                 # low entropy — file cache, skip
                 byte = random.randint(32, 126)
                 page = bytes([byte]) * PAGE
 
-            elif r < 0.90:
+            elif r < 0.85:
                 # high entropy — crypto keys, heap, keep
                 page = os.urandom(PAGE)
 
