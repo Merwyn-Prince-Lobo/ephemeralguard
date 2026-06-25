@@ -14,7 +14,7 @@ ENDPOINT       = "http://localhost:4566"
 REGION         = "us-east-1"
 BUCKET         = "ephemeralguard-forensics"
 TABLE          = "ForensicAuditLog"
-KMS_KEY_ID     = "47237a51-4083-4834-81de-2044bbfada20"
+KMS_KEY_ID     = "28c7c3c0-27c4-49a5-8f3b-0af3b08574b3"
 
 BOTO_KWARGS = dict(
     endpoint_url=ENDPOINT,
