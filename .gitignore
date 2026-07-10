@@ -6,3 +6,7 @@ __pycache__/
 manifest.json
 localstack-data/
 output.json
+ephemeralguard-env/
+venv/
+.venv/
+*.venv/
