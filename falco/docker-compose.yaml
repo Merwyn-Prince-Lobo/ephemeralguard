@@ -4,19 +4,23 @@ services:
     container_name: falco
     privileged: true
     restart: unless-stopped
+    security_opt:
+      - apparmor:unconfined
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /proc:/host/proc:ro
       - /boot:/host/boot:ro
       - /lib/modules:/host/lib/modules:ro
       - ./rules/ephemeralguard-rules.yaml:/etc/falco/rules.d/ephemeralguard-rules.yaml:ro
-      - ./rules/ephemeralguard-rules.yaml:/etc/falco/rules.d/ephemeralguard-rules.yaml:ro
       - /usr:/host/usr:ro
       - /etc:/host/etc:ro
       - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
       - ./rules/custom-rules.yaml:/etc/falco/rules.d/custom-rules.yaml:ro
+      - ./config.d/rule_matching.yaml:/etc/falco/config.d/rule_matching.yaml:ro
     command: >
       /usr/bin/falco
+      -o rule_matching=all
       -o json_output=true
       -o http_output.enabled=true
       -o http_output.url=http://falcosidekick:2801/
@@ -30,13 +34,12 @@ services:
     environment:
       - WEBUI_URL=http://falcosidekick-ui:2802
       - WEBHOOK_ADDRESS=http://172.17.0.1:8080/falco-alert
-      - WEBHOOK_ADDRESS=http://172.17.0.1:8080/falco-alert
 
   falcosidekick-ui:
     image: falcosecurity/falcosidekick-ui:latest
     container_name: falcosidekick-ui
     restart: unless-stopped
-    ports:
+    ports: 
       - "2802:2802"
     environment:
       - FALCOSIDEKICK_UI_REDIS_URL=falcosidekick-ui-redis:6379
