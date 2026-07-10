@@ -1,0 +1,19 @@
+- rule: EphemeralGuard - Cryptomining Process Pattern
+  desc: Detects the attack_simulation.py process (or a real cryptominer)
+  condition: >
+    spawned_process and proc.cmdline contains "attack_simulation"
+  output: >
+    Cryptomining-like process detected (user=%user.name command=%proc.cmdline
+    pid=%proc.pid container=%container.name)
+  priority: CRITICAL
+  tags: [ephemeralguard, process]
+
+- rule: EphemeralGuard - Outbound to Known C2 Range
+  desc: Outbound connection to the simulated attacker C2 IP
+  condition: >
+    outbound and fd.sip="185.220.101.47"
+  output: >
+    Outbound connection to suspicious C2 IP (command=%proc.cmdline
+    connection=%fd.name pid=%proc.pid)
+  priority: CRITICAL
+  tags: [ephemeralguard, network]

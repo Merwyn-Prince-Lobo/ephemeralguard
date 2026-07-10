@@ -1,0 +1,55 @@
+services:
+  falco:
+    image: falcosecurity/falco:latest
+    container_name: falco
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - ./rules/ephemeralguard-rules.yaml:/etc/falco/rules.d/ephemeralguard-rules.yaml:ro
+      - ./rules/ephemeralguard-rules.yaml:/etc/falco/rules.d/ephemeralguard-rules.yaml:ro
+      - /usr:/host/usr:ro
+      - /etc:/host/etc:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - ./rules/custom-rules.yaml:/etc/falco/rules.d/custom-rules.yaml:ro
+    command: >
+      /usr/bin/falco
+      -o json_output=true
+      -o http_output.enabled=true
+      -o http_output.url=http://falcosidekick:2801/
+
+  falcosidekick:
+    image: falcosecurity/falcosidekick:latest
+    container_name: falcosidekick
+    restart: unless-stopped
+    ports:
+      - "2801:2801"
+    environment:
+      - WEBUI_URL=http://falcosidekick-ui:2802
+      - WEBHOOK_ADDRESS=http://172.17.0.1:8080/falco-alert
+      - WEBHOOK_ADDRESS=http://172.17.0.1:8080/falco-alert
+
+  falcosidekick-ui:
+    image: falcosecurity/falcosidekick-ui:latest
+    container_name: falcosidekick-ui
+    restart: unless-stopped
+    ports:
+      - "2802:2802"
+    environment:
+      - FALCOSIDEKICK_UI_REDIS_URL=falcosidekick-ui-redis:6379
+    depends_on:
+      - falcosidekick-ui-redis
+
+  falcosidekick-ui-redis:
+    image: redis/redis-stack-server:latest
+    container_name: falcosidekick-ui-redis
+    restart: unless-stopped
+
+  victim:
+    image: alpine:latest
+    container_name: victim
+    command: sleep infinity
+    tty: true

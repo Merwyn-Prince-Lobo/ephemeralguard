@@ -1,0 +1,26 @@
+# Custom rule: detect anyone reading our "secrets.txt" file inside a container
+- rule: Secrets File Read
+  desc: Detects a process reading secrets.txt inside a container
+  condition: >
+    open_read
+    and container
+    and fd.name endswith "secrets.txt"
+  output: >
+    ALERT: Secrets file was read (user=%user.name command=%proc.cmdline
+    container=%container.name file=%fd.name)
+  priority: CRITICAL
+  tags: [demo, filesystem, secrets]
+
+# Custom rule: detect curl/wget being used inside our victim container (fake exfil)
+- rule: Suspicious Outbound Tool Used
+  desc: Detects curl or wget launched inside the victim container
+  condition: >
+    spawned_process
+    and container
+    and container.name = "victim"
+    and (proc.name = "curl" or proc.name = "wget")
+  output: >
+    ALERT: Possible data exfiltration attempt (user=%user.name command=%proc.cmdline
+    container=%container.name)
+  priority: WARNING
+  tags: [demo, network, exfiltration]
