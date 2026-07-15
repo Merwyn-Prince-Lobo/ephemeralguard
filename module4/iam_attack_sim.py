@@ -4,9 +4,14 @@ IAM Attack Simulation — simulates real fintech attack scenarios
 Each attack is logged via Module 3
 """
 
+import os
 import sys
 import boto3
-sys.path.append('/home/ubuntu/temp_ccncs/module3')
+
+# module3 is a sibling directory of module4 — compute the path relative to
+# this file instead of hardcoding an absolute path that only worked if the
+# repo happened to live at /home/ubuntu/temp_ccncs.
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "module3"))
 from audit_logger import log_audit_event
 
 ENDPOINT = "http://localhost:4566"

@@ -168,23 +168,22 @@ Falco alert (Mod 1)
 
 ## LocalStack Setup
 
-Prereqs: Docker running, LocalStack container up.
+Prereqs: Docker running.
 
 ```bash
-cd ~/temp_ccncs
+cd ~/temp_ccncs-main
 docker compose up -d
 
-# Bootstrap AWS resources (first time only)
-awslocal s3 mb s3://ephemeralguard-forensics
-awslocal dynamodb create-table \
-  --table-name ForensicAuditLog \
-  --attribute-definitions AttributeName=EventId,AttributeType=S \
-  --key-schema AttributeName=EventId,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
-awslocal kms create-key --description "EphemeralGuard Audit Key"
+# Use the repo's setup_localstack.sh instead of bootstrapping by hand —
+# it's idempotent, also creates the SQS queue this module needs, and
+# writes KMS_KEY_ID / QUEUE_URL / QUEUE_ARN to .env
+./setup_localstack.sh
 ```
 
-Update `KMS_KEY_ID` in `lambda_function.py` and `module3/audit_logger.py` with the new key ID every time LocalStack is reset.
+`lambda_function.py` and `module3/audit_logger.py` both read `KMS_KEY_ID`
+from `.env` automatically now, so there's no manual key update step
+needed after a LocalStack reset — just re-run `./setup_localstack.sh` and
+redeploy with `python3 deploy_lambda.py`.
 
 ---
 
@@ -193,7 +192,7 @@ Update `KMS_KEY_ID` in `lambda_function.py` and `module3/audit_logger.py` with t
 | Issue | Cause | Fix |
 |---|---|---|
 | Lambda stuck in `Pending` | LocalStack pulling runtime container | Run `awslocal lambda wait function-active-v2 --function-name ephemeralguard-forensic-trigger` |
-| `NotFoundException` on KMS | Container was reset, key ID changed | Re-run `awslocal kms create-key` and update key ID in config |
+| `NotFoundException` on KMS | Container was reset, key ID changed | Re-run `./setup_localstack.sh` (reuses or recreates the key and updates `.env`), then `python3 deploy_lambda.py` to redeploy with the current key — no manual config edits needed |
 | `Float not supported` in DynamoDB | boto3 requires `Decimal` for floats | Convert floats to `str` or `Decimal` before passing as metadata |
 
 ---

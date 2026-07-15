@@ -173,21 +173,18 @@ The hash and encrypted data live in **separate services** — an attacker would 
 
 ## LocalStack Setup (Dev Environment)
 
-Prereqs: Docker running, LocalStack container up on port 4566.
+Prereqs: Docker running.
 
 ```bash
-# Start LocalStack
-cd ~/ephemeralguard
+# Start LocalStack from the repo root (not from module3/ — there is no
+# separate compose file here anymore, use the root one)
+cd ~/temp_ccncs-main
 docker compose up -d
 
-# Bootstrap resources (one time)
-awslocal s3 mb s3://ephemeralguard-forensics
-awslocal dynamodb create-table \
-  --table-name ForensicAuditLog \
-  --attribute-definitions AttributeName=EventId,AttributeType=S \
-  --key-schema AttributeName=EventId,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
-awslocal kms create-key --description "EphemeralGuard Audit Key"
+# Bootstrap resources — use the repo's own setup_localstack.sh instead of
+# running these commands by hand, it also creates the SQS queue and KMS
+# key and writes them all to .env for the other modules to read
+./setup_localstack.sh
 
 # Install deps
 pip install boto3 awscli awscli-local --break-system-packages

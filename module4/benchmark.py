@@ -3,11 +3,13 @@ EphemeralGuard - Module 4
 Benchmarking — validates sub-100ms capture window
 """
 
+import os
 import sys
 import time
 import statistics
 import concurrent.futures
-sys.path.append('/home/ubuntu/temp_ccncs/module3')
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "module3"))
 from audit_logger import log_audit_event
 
 TARGET_MS = 100
