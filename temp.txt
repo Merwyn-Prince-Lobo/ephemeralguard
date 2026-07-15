@@ -1,0 +1,14 @@
+cd ~/temp_ccncs-main
+docker compose down && docker compose up -d      # restart LocalStack with SQS enabled
+./setup_localstack.sh                             # bucket + table + queue + KMS key → .env
+
+cd module4
+python3 iam_setup.py
+python3 deploy_lambda.py                          # deploys Lambda + wires SQS trigger
+
+cd ../falco
+docker compose down && docker compose up -d       # restart with new victim image
+
+cd ../module1/ephemeralguard
+chmod +x run_scenario.sh
+./run_scenario.sh

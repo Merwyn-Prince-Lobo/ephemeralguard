@@ -49,6 +49,11 @@ FORENSIC_POLICY = json.dumps({
             "Effect": "Allow",
             "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
             "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+            "Resource": "arn:aws:sqs:us-east-1:000000000000:forensic-trigger-queue"
         }
     ]
 })

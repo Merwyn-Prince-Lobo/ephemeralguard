@@ -131,9 +131,21 @@ def log_audit_event(event_type, function_name, metadata):
 
 
 def lambda_handler(event, context):
-    start         = time.perf_counter()
-    function_name = event.get("function_name", "unknown-lambda")
-    trigger       = event.get("trigger", "manual")
+    start = time.perf_counter()
+
+    # SQS-triggered invocations wrap the real payload as a JSON string in
+    # Records[0]["body"]; direct invocations (e.g. deploy_lambda.py's test
+    # call) pass function_name/trigger at the top level. Handle both.
+    if "Records" in event and event["Records"]:
+        try:
+            payload = json.loads(event["Records"][0].get("body", "{}"))
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+    else:
+        payload = event
+
+    function_name = payload.get("function_name", "unknown-lambda")
+    trigger       = payload.get("trigger", "manual")
 
     print(f"[EphemeralGuard] Triggered for {function_name} via {trigger}")
 

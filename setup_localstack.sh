@@ -5,6 +5,7 @@ set -e
 
 BUCKET="ephemeralguard-forensics"
 TABLE="ForensicAuditLog"
+QUEUE="forensic-trigger-queue"
 
 # wait for LocalStack to respond (capped, won't hang)
 echo "Waiting for LocalStack to be reachable..."
@@ -44,6 +45,17 @@ else
     --billing-mode PAY_PER_REQUEST >/dev/null
 fi
 
+# SQS queue
+if awslocal sqs get-queue-url --queue-name "${QUEUE}" >/dev/null 2>&1; then
+  echo "SQS queue '${QUEUE}' already exists, skipping."
+else
+  echo "Creating SQS queue..."
+  awslocal sqs create-queue --queue-name "${QUEUE}" >/dev/null
+fi
+QUEUE_URL=$(awslocal sqs get-queue-url --queue-name "${QUEUE}" --query 'QueueUrl' --output text)
+QUEUE_ARN=$(awslocal sqs get-queue-attributes --queue-url "${QUEUE_URL}" \
+  --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+
 # KMS key (reuse from .env if still valid)
 EXISTING_KEY_ID=""
 if [ -f .env ]; then
@@ -57,11 +69,21 @@ else
   echo "Creating KMS key..."
   KMS_KEY_ID=$(awslocal kms create-key --description "EphemeralGuard Audit Key" \
     --query 'KeyMetadata.KeyId' --output text)
-  echo "KMS_KEY_ID=${KMS_KEY_ID}" > .env
 fi
+
+# Always rewrite .env with current values — this is the single source of
+# truth. deploy_lambda.py reads KMS_KEY_ID/QUEUE_ARN from here instead of
+# hardcoding them, which is what caused the KMS key mismatch before.
+cat > .env <<EOF
+KMS_KEY_ID=${KMS_KEY_ID}
+QUEUE_URL=${QUEUE_URL}
+QUEUE_ARN=${QUEUE_ARN}
+EOF
 
 echo ""
 echo "Done."
-echo "  Bucket : ${BUCKET}"
-echo "  Table  : ${TABLE}"
-echo "  KMS key: ${KMS_KEY_ID}  (saved to .env)"
+echo "  Bucket    : ${BUCKET}"
+echo "  Table     : ${TABLE}"
+echo "  Queue     : ${QUEUE} (${QUEUE_URL})"
+echo "  KMS key   : ${KMS_KEY_ID}"
+echo "  (all saved to .env)"

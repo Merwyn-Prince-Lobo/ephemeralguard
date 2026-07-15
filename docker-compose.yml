@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   localstack:
     image: localstack/localstack:3.8.0
@@ -6,7 +5,7 @@ services:
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=lambda,s3,dynamodb,iam,cloudtrail,sts,logs,kms
+      - SERVICES=lambda,s3,dynamodb,iam,cloudtrail,sts,logs,kms,sqs
       - DOCKER_HOST=unix:///var/run/docker.sock
       - AWS_DEFAULT_REGION=us-east-1
     volumes:

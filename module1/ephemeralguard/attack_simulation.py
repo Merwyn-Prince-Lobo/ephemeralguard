@@ -34,6 +34,25 @@ attack_data = {
     }
 }
 
+# Actually attempt an outbound connection to the C2 IP so the Falco rule
+# (which matches on fd.sip, a real connect() syscall) has something to see.
+# Previously the IP only existed as a string in a dict — never dialed.
+def contact_c2():
+    print(f"[ATTACK] Attempting outbound connection to C2 {C2_SERVER}...")
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3)
+        # Connection will very likely fail/timeout (nothing is listening,
+        # and this IP shouldn't be routable from your test network) — that's
+        # fine and expected. The connect() attempt itself is enough to
+        # trigger the Falco network rule; we don't need it to succeed.
+        s.connect((C2_SERVER, 443))
+    except OSError as e:
+        print(f"[ATTACK] C2 connection attempt finished (expected failure): {e}")
+    finally:
+        s.close()
+
+
 # CPU spike — cryptomining pattern
 def mine_crypto():
     print("[ATTACK] Cryptomining started — CPU spike!")
@@ -55,6 +74,7 @@ t2 = threading.Thread(target=keep_alive, daemon=True)
 
 t1.start()
 t2.start()
+contact_c2()
 t1.join()
 
 print("[ATTACK] Attack complete — evidence should be in memory dump")

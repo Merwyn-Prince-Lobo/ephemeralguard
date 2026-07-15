@@ -52,7 +52,12 @@ services:
     restart: unless-stopped
 
   victim:
-    image: alpine:latest
+    image: python:3.11-slim
     container_name: victim
-    command: sleep infinity
+    # Bare alpine had no python3 and nothing mounted, so run_scenario.sh
+    # could never actually execute inside here — Falco was watching a
+    # container that never ran anything.
+    command: sh -c "pip install --no-cache-dir boto3 numpy >/dev/null 2>&1; sleep infinity"
+    volumes:
+      - ../module1/ephemeralguard:/ephemeralguard:ro
     tty: true
