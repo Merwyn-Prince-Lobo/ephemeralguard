@@ -167,3 +167,99 @@ This creates an S3 bucket (`ephemeralguard-forensics`), a DynamoDB table
 4. Consider removing the `version: "3.8"` line from the root
    `docker-compose.yml` — it's obsolete in current Docker Compose and
    just produces a harmless warning on every run.
+
+
+
+
+   # EphemeralGuard — Fixes Applied
+
+## 1. `docker-compose.yml` (root)
+- Added `sqs` to `SERVICES=` — LocalStack was never running SQS at all, so
+  the queue couldn't be created regardless of what the scripts said.
+- Dropped the obsolete `version: "3.8"` key.
+
+## 2. `setup_localstack.sh`
+- Added SQS queue creation (`forensic-trigger-queue`), idempotent like the
+  rest of the script.
+- Now writes **all three** values to `.env` every run: `KMS_KEY_ID`,
+  `QUEUE_URL`, `QUEUE_ARN`. Previously only the KMS key was saved, and only
+  on first creation — this is now the single source of truth other scripts
+  read from.
+
+## 3. `module4/iam_setup.py`
+- Added `sqs:ReceiveMessage` / `sqs:DeleteMessage` / `sqs:GetQueueAttributes`
+  to the Lambda role's policy. Without this, even a correctly-wired event
+  source mapping can't poll the queue.
+
+## 4. `module4/deploy_lambda.py`
+- No longer hardcodes a KMS key ID that didn't match what
+  `setup_localstack.sh` actually created — now reads `KMS_KEY_ID` from
+  `.env`. This was a silent time-bomb: `kms.encrypt()` would have failed
+  the first time the Lambda actually ran for real.
+- Added `wire_sqs_trigger()` — creates the SQS→Lambda event source mapping
+  that never existed anywhere in the repo. This is *the* missing link:
+  previously, sending a message to the queue did nothing at all.
+- `update_function_configuration` now also runs on redeploy, so the env
+  vars stay in sync if you re-run this after the KMS key rotates.
+
+## 5. `module4/lambda_function.py`
+- `lambda_handler` now unwraps SQS-triggered events (`event["Records"][0]
+  ["body"]`, JSON-encoded) in addition to direct-invoke events. Before this,
+  the function only worked when called directly via `lam.invoke()` (as
+  `deploy_lambda.py`'s test call does) — the real SQS-triggered path would
+  have silently returned `function_name: "unknown-lambda"`.
+
+## 6. `falco/docker-compose.yaml`
+- `victim` container was bare `alpine:latest` running `sleep infinity` —
+  no Python, nothing mounted. The attack scenario could never physically
+  run inside it, so Falco was watching a container that never did anything.
+- Now uses `python:3.11-slim`, installs `boto3`/`numpy` on start, and mounts
+  `module1/ephemeralguard/` read-only at `/ephemeralguard`.
+
+## 7. `module1/ephemeralguard/attack_simulation.py`
+- Added a real `socket.connect()` attempt to the C2 IP (`185.220.101.47`,
+  port 443, 3s timeout, wrapped in try/except — expected to fail/timeout,
+  that's fine and by design). Previously the IP only existed as a string in
+  a dict; no actual network syscall was ever made, so the "Outbound to
+  Known C2 Range" Falco rule (which matches on `fd.sip`) was **unfireable**
+  no matter how many times you ran the script.
+
+## 8. `module1/ephemeralguard/run_scenario.sh`
+- Rewritten to run `normal_traffic.py` / `attack_simulation.py` via
+  `docker exec -d victim python3 /ephemeralguard/...` instead of directly
+  on the host — this is what actually puts the process inside the
+  container Falco is monitoring.
+- Reads `QUEUE_URL` from `.env` instead of a hardcoded URL.
+- Fixed the S3 bucket check to `ephemeralguard-forensics` (was
+  `forensic-evidence-bucket`, which never existed).
+- Checks that `victim` is actually running before doing anything, and that
+  `.env` exists (i.e. `setup_localstack.sh` was run first).
+
+---
+
+## Run order (matters now)
+
+```bash
+cd ~/temp_ccncs-main
+docker compose up -d              # LocalStack (now with SQS enabled)
+./setup_localstack.sh             # bucket + table + queue + KMS key -> .env
+
+cd module4
+python3 iam_setup.py              # role + policies (incl. new SQS perms)
+python3 deploy_lambda.py          # deploys Lambda + wires SQS trigger + test invoke
+
+cd ../falco
+docker compose up -d              # Falco + victim (now python-capable, mounted)
+
+cd ../module1/ephemeralguard
+./run_scenario.sh                 # the actual end-to-end attack scenario
+```
+
+## Still worth doing next (not blocking, but flagged)
+- The two EphemeralGuard Falco rules should now be fireable live — worth
+  confirming with `docker compose logs -f falco` or the Falcosidekick UI
+  while `run_scenario.sh` runs, per the original readme's Pending Work #2.
+- `module4/iam_attack_sim.py` hardcodes `sys.path.append('/home/ubuntu/
+  temp_ccncs/module3')` — will break unless your repo happens to live at
+  that exact path. Didn't touch it since it's outside what you asked for,
+  but flagging it since it'll bite you the same way `run_scenario.sh` did.
