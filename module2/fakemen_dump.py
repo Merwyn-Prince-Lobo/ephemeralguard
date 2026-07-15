@@ -4,7 +4,7 @@ def generate_synthetic_dump(path: str, size_gb: float = 1.0):
     """
     Creates a realistic fake memory dump for testing.
     Matches real memory distribution:
-      40% zero pages, 30% low-entropy, 20% high-entropy, 10% structured
+      10% zero pages, 30% low-entropy, 45% high-entropy, 15% structured
     """
     PAGE = 4096
     total_pages = int((size_gb * 1024**3) / PAGE)
@@ -37,5 +37,6 @@ def generate_synthetic_dump(path: str, size_gb: float = 1.0):
 
     print(f"Generated {path}: {size_gb}GB, {total_pages} pages")
 
-# Generate a 1GB test dump — takes ~10 seconds
-generate_synthetic_dump('test_dump2.bin', size_gb=1.0)
+if __name__ == "__main__":
+    # Generate a 1GB test dump — takes ~10 seconds
+    generate_synthetic_dump('test_dump2.bin', size_gb=1.0)

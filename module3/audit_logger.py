@@ -6,15 +6,37 @@ Tamper-proof audit logger with KMS-encrypted S3 dump and DynamoDB event log
 import boto3
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 
-# ── Config ────────────────────────────────────────────────────────────────────
+
+def load_env():
+    """Read KMS_KEY_ID written by setup_localstack.sh, same as module4/deploy_lambda.py."""
+    env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+    values = {}
+    if not os.path.exists(env_path):
+        raise SystemExit(
+            f"[\u2717] {env_path} not found \u2014 run ./setup_localstack.sh first "
+            "(it creates the bucket/table/queue/KMS key and writes .env)."
+        )
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and "=" in line:
+                k, v = line.split("=", 1)
+                values[k] = v
+    if "KMS_KEY_ID" not in values:
+        raise SystemExit("[\u2717] KMS_KEY_ID missing from .env \u2014 re-run ./setup_localstack.sh")
+    return values
+
+
+# \u2500\u2500 Config \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ENDPOINT       = "http://localhost:4566"
 REGION         = "us-east-1"
 BUCKET         = "ephemeralguard-forensics"
 TABLE          = "ForensicAuditLog"
-KMS_KEY_ID     = "28c7c3c0-27c4-49a5-8f3b-0af3b08574b3"
+KMS_KEY_ID     = load_env()["KMS_KEY_ID"]
 
 BOTO_KWARGS = dict(
     endpoint_url=ENDPOINT,

@@ -61,6 +61,9 @@ awslocal s3 ls s3://ephemeralguard-forensics/dumps/ --recursive
 
 echo ""
 echo "Cleaning up processes inside victim container..."
-docker exec victim pkill -f normal_traffic.py 2>/dev/null || true
-docker exec victim pkill -f attack_simulation.py 2>/dev/null || true
+# Run as a file, not inline -c code — see cleanup.py's docstring for why:
+# passing the target filenames as a literal -c string would put
+# "attack_simulation" in this process's own cmdline and self-trigger the
+# EphemeralGuard - Cryptomining Process Pattern rule on every cleanup.
+docker exec victim python3 /ephemeralguard/cleanup.py 2>/dev/null || true
 echo "Done."

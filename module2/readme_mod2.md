@@ -218,7 +218,7 @@ Current testing uses a synthetic memory dump generator that simulates realistic 
 
 The expected triage result is approximately:
 
-* 70% pages discarded
-* 30% pages retained
+* 40% pages discarded
+* 60% pages retained
 
 This validates the functionality of the triage classifier before integration with the complete forensic acquisition pipeline.
