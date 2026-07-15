@@ -62,13 +62,23 @@ def run_benchmark():
     print(f"    Under {TARGET_MS}ms       : {p_passed}/{PARALLEL}")
 
     print("\n── Verdict ──────────────────────────────────────────")
-    overall = (passed / RUNS) * 100
-    if overall >= 90:
-        print(f"  ✅ PASS — {overall:.0f}% of events captured within {TARGET_MS}ms")
-        print(f"     EphemeralGuard meets the race-against-termination requirement")
+    single_pct = (passed / RUNS) * 100
+    parallel_pct = (p_passed / PARALLEL) * 100
+
+    if single_pct >= 90:
+        print(f"  ✅ PASS (single-threaded) — {single_pct:.0f}% of events captured within {TARGET_MS}ms")
+        print(f"     EphemeralGuard meets the race-against-termination requirement under normal load")
     else:
-        print(f"  ❌ FAIL — only {overall:.0f}% within {TARGET_MS}ms")
+        print(f"  ❌ FAIL (single-threaded) — only {single_pct:.0f}% within {TARGET_MS}ms")
         print(f"     Optimization needed before production deploy")
+
+    if parallel_pct >= 90:
+        print(f"  ✅ Parallel stress test — {p_passed}/{PARALLEL} ({parallel_pct:.0f}%) within {TARGET_MS}ms")
+    else:
+        print(f"  ⚠️  Parallel stress test — only {p_passed}/{PARALLEL} ({parallel_pct:.0f}%) within {TARGET_MS}ms")
+        print(f"     LocalStack serializes concurrent KMS/S3 calls more than real AWS would;")
+        print(f"     treat this as a simulation-environment constraint, not a confirmed")
+        print(f"     production issue — but it hasn't been validated against real AWS either.")
 
 
 if __name__ == "__main__":
