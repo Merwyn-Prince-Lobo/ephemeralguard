@@ -41,6 +41,7 @@ Current implementation:
 * NumPy-based entropy calculation
 * Configurable entropy threshold
 * Fast page-by-page processing
+* added  key word based classification
 
 ---
 
