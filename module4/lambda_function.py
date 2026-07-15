@@ -14,6 +14,7 @@ import random
 import numpy as np
 import boto3
 import uuid
+from decimal import Decimal
 from datetime import datetime, timezone
 
 ENDPOINT   = os.environ.get("AWS_ENDPOINT_URL", "http://localhost:4566")
@@ -96,6 +97,19 @@ def triage_dump(dump_bytes):
     }
 
 
+def to_dynamo_safe(value):
+    """DynamoDB's boto3 resource API rejects plain Python floats — it wants
+    Decimal. avg_entropy/capture_ms/entropy are floats from round(), so
+    convert recursively (dicts/lists) right before put_item."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: to_dynamo_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [to_dynamo_safe(v) for v in value]
+    return value
+
+
 def log_audit_event(event_type, function_name, metadata):
     kwargs = dict(
         endpoint_url=ENDPOINT,
@@ -125,7 +139,8 @@ def log_audit_event(event_type, function_name, metadata):
     table.put_item(Item={
         "EventId": event_id, "Timestamp": timestamp,
         "EventType": event_type, "FunctionName": function_name,
-        "PayloadHash": payload_hash, "S3Key": s3_key, "Metadata": metadata
+        "PayloadHash": payload_hash, "S3Key": s3_key,
+        "Metadata": to_dynamo_safe(metadata)
     })
     return event_id
 
