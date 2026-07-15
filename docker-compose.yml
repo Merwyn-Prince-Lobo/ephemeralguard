@@ -8,5 +8,11 @@ services:
       - SERVICES=lambda,s3,dynamodb,iam,cloudtrail,sts,logs,kms,sqs
       - DOCKER_HOST=unix:///var/run/docker.sock
       - AWS_DEFAULT_REGION=us-east-1
+      # Without this, a container crash/restart silently wipes the S3
+      # bucket, DynamoDB table, SQS queue, and KMS key — which happened
+      # mid-testing and produced a confusing "KMS key does not exist"
+      # error with no obvious cause. State now survives restarts.
+      - PERSISTENCE=1
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./volume:/var/lib/localstack"
