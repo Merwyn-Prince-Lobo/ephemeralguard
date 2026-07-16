@@ -2,6 +2,7 @@ import hashlib
 import time
 import re
 import boto3
+from botocore.config import Config
 
 CHUNK_SIZE = 10 * 1024 * 1024  # 10MB
 
@@ -10,10 +11,19 @@ s3 = boto3.client(
     endpoint_url='http://localhost:4566',
     region_name='us-east-1',
     aws_access_key_id='test',
-    aws_secret_access_key='test'
+    aws_secret_access_key='test',
+    # Newer boto3/botocore versions default to auto-adding a CRC32
+    # checksum on every S3 request. LocalStack's multipart upload
+    # handling doesn't always agree with that default, causing
+    # "Checksum Type mismatch" errors. Forcing "when_required" restores
+    # the old behavior (only send a checksum if the API call requires one).
+    config=Config(
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    ),
 )
 
-BUCKET = 'forensic-evidence-bucket'
+BUCKET = 'ephemeralguard-forensics'
 
 MAPS_LINE_RE = re.compile(
     r'^([0-9a-f]+)-([0-9a-f]+)\s+([rwxps-]{4})'
