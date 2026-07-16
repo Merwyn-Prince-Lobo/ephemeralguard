@@ -4,6 +4,7 @@ Tamper-proof audit logger with KMS-encrypted S3 dump and DynamoDB event log
 """
 
 import boto3
+from botocore.config import Config
 import hashlib
 import json
 import os
@@ -43,6 +44,10 @@ BOTO_KWARGS = dict(
     region_name=REGION,
     aws_access_key_id="test",
     aws_secret_access_key="test",
+    # Default max_pool_connections is 10 — right at the ceiling for
+    # PARALLEL=10 benchmark threads each needing s3+dynamodb+kms
+    # connections simultaneously. Raised to give headroom under load.
+    config=Config(max_pool_connections=50),
 )
 
 # ── Clients ───────────────────────────────────────────────────────────────────

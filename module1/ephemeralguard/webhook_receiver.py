@@ -1,8 +1,31 @@
 from flask import Flask, request
 import json
+import os
 import boto3
 
 app = Flask(__name__)
+
+
+def load_queue_url():
+    """Read QUEUE_URL written by setup_localstack.sh — same source of
+    truth every other module reads from, instead of a hardcoded URL that
+    could drift from what actually got created."""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env")
+    values = {}
+    if not os.path.exists(env_path):
+        raise SystemExit(
+            f"[✗] {env_path} not found — run ./setup_localstack.sh first."
+        )
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and "=" in line:
+                k, v = line.split("=", 1)
+                values[k] = v
+    if "QUEUE_URL" not in values:
+        raise SystemExit("[✗] QUEUE_URL missing from .env — re-run ./setup_localstack.sh")
+    return values["QUEUE_URL"]
+
 
 sqs = boto3.client(
     'sqs',
@@ -12,7 +35,7 @@ sqs = boto3.client(
     aws_secret_access_key='test'
 )
 
-QUEUE_URL = 'http://localhost:4566/000000000000/forensic-trigger-queue'
+QUEUE_URL = load_queue_url()
 
 @app.route('/falco-alert', methods=['POST'])
 def receive_alert():
@@ -26,7 +49,7 @@ def receive_alert():
                 'rule': alert.get('rule'),
                 'priority': alert.get('priority'),
                 'output': alert.get('output'),
-                'function_name': 'payment-processor',
+                'function_name': 'fintech-payment-processor',
                 'trigger': 'CAPTURE_NOW'
             })
         )
