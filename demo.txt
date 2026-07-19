@@ -1,0 +1,157 @@
+EPHEMERALGUARD DEMO SCRIPT
+run this top to bottom, terminal numbers marked
+
+=======================================================
+TERMINAL 1 — full wipe (do this first everytime, old data keeps sticking around)
+=======================================================
+
+cd ~/temp_ccncs
+pkill -f webhook_receiver.py                      # kill old webhook if its still running from last time
+
+docker compose -f falco/docker-compose.yaml down -v   # kills falco stack + wipes redis (falcosidekick ui history)
+docker compose down -v                             # kills localstack container
+
+docker ps -a                                        # MUST show nothing. if it shows old containers stop here and figure out why
+
+ls -la volume                                        # MUST say no such file/dir. if it still exists something didnt wipe
+rm -rf volume                                        # this is localstacks persisted state (s3/dynamo/kms), bind mount so down -v doesnt touch it
+rm -f .env                                           # old kms key id / queue arn, gets regenerated next step
+
+awslocal dynamodb scan --table-name ForensicAuditLog --select COUNT   # only works after localstack is back up, skip if erroring rn
+
+
+=======================================================
+TERMINAL 1 — bring it all back up clean
+=======================================================
+
+docker compose up -d                                 # starts fresh localstack
+./setup_localstack.sh                                # creates bucket/table/queue/kms key, writes new .env
+
+awslocal dynamodb scan --table-name ForensicAuditLog --select COUNT   # confirm Count: 0 before doing anything else, dont skip this
+
+cd module4
+python3 iam_setup.py                                 # roles + policies for lambda
+python3 deploy_lambda.py                             # deploys lambda, wires sqs trigger, test invoke
+cd ..
+
+cd falco
+docker compose up -d                                 # falco + falcosidekick + ui + victim container
+cd ..
+
+docker ps -a                                          # check falco, falcosidekick, falcosidekick-ui, falcosidekick-ui-redis, victim, ephemeralguard-localstack all up
+
+
+=======================================================
+TERMINAL 2 — webhook (leave this running whole time, dont close)
+=======================================================
+
+python3 module1/ephemeralguard/webhook_receiver.py    # this is what actually closes the loop, falco alert -> sqs
+
+
+=======================================================
+TERMINAL 3 — START RECORDING HERE, then run attack
+=======================================================
+
+cd module1/ephemeralguard
+./run_scenario.sh                                     # injects normal traffic then attack, falco should catch it live
+cd ../..
+
+
+=======================================================
+TERMINAL 1 — verify falco actually caught it (still recording)
+=======================================================
+
+docker compose -f falco/docker-compose.yaml logs falco --since 2m | grep -i "EphemeralGuard -"
+# should see BOTH rules fire: Cryptomining Process Pattern AND Outbound to Known C2 Range
+# note: cryptomining rule fires twice, once for the docker exec on host once for the actual process inside victim. thats normal not a bug
+
+awslocal s3 ls s3://ephemeralguard-forensics/dumps/ --recursive
+# should see one real .dump file + a couple .enc files, nothing older mixed in
+
+
+=======================================================
+TERMINAL 3 (or 1) — real memory dump segment
+=======================================================
+
+docker exec -it victim python3 /ephemeralguard/attack_simulation.py
+# watch for "Real dump stored: s3://..." line, copy the filename it prints
+
+awslocal s3 cp s3://ephemeralguard-forensics/dumps/<PASTE_FILENAME_HERE>.dump ./realdump.bin
+
+strings realdump.bin | grep -i "STOLEN_AWS_KEY\|StealThis123\|admin@bank\|bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh\|185.220.101.47\|4532015112830366"
+# proves real secrets are literally sitting in raw memory, not fake
+
+
+=======================================================
+TERMINAL 3 — hex dump segment (the cool visual part)
+=======================================================
+
+xxd realdump.bin | head -50                           # just raw hex start of file
+
+grep -abo "STOLEN_SESSION_DATA" realdump.bin | head -5   # -b gives byte offset so we know exactly where it lives
+
+xxd -s <OFFSET_FROM_ABOVE> -l 512 realdump.bin         # hex centered on the secret, ascii column on right shows it resolving
+
+grep -abo "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh" realdump.bin | head -3
+xxd -s <OFFSET_FROM_ABOVE> -l 256 realdump.bin
+
+# for live scrolling on camera instead of static:
+xxd realdump.bin | less                                # arrow keys scroll, / to search, q to quit
+# or
+hexedit realdump.bin                                   # ctrl+s to search live, looks better on recording
+
+
+=======================================================
+TERMINAL 3 — run our own triage classifier on the REAL dump
+=======================================================
+
+python3 -c "
+from module2.traige_classifier import TriageStreamingExtractor
+ext = TriageStreamingExtractor('realdump.bin', context='cryptomining')
+kept = list(ext.extract())
+print('kept pages:', len(kept))
+print(ext.stats())
+"
+# compare this against a synthetic dump run if i want that stat for the report
+# real dumps have way lower avg entropy than fake ones, good point for discussion section
+
+
+=======================================================
+TERMINAL 1 — benchmark segment (separate take, dont mix with attack footage)
+=======================================================
+
+cd module4
+python3 benchmark.py
+cd ..
+# single threaded should pass <100ms basically always
+# parallel/concurrent WILL fail localstacks kms/s3 emulation just cant keep up under load
+# this is a known localstack limitation not my bug, say that on camera
+
+
+=======================================================
+TERMINAL 1 — iam attack sim segment (separate take)
+=======================================================
+
+cd module4
+python3 iam_attack_sim.py
+cd ..
+# 4 scenarios: privilege escalation, credential recon, unauthorized s3 access, lateral movement
+# all should say SUCCESS and log an event
+
+
+=======================================================
+TERMINAL 1 — final clean listing to close out the recording
+=======================================================
+
+awslocal s3 ls s3://ephemeralguard-forensics/dumps/ --recursive
+
+awslocal dynamodb scan --table-name ForensicAuditLog --query "Items[*].[EventId.S, Timestamp.S, EventType.S]" --output table
+
+
+=======================================================
+RANDOM NOTES TO SELF
+=======================================================
+- capture.py needed endpoint_url changed from localhost:4566 to 172.17.0.1:4566, victim container cant reach host via "localhost"
+- run_scenario.sh uses docker exec -d (detached) so print statements from attack_simulation.py go NOWHERE visible, if debugging always run with -it instead
+- my system clock is off cause of dual boot, doesnt actually matter for the demo logic but timestamps in scans will look weird, ignore
+- falcosidekick ui redis has no named volume so docker compose down -v on falco/docker-compose.yaml wipes the whole alert history, thats the fix if ui looks cluttered
