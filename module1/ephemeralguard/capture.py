@@ -8,7 +8,7 @@ CHUNK_SIZE = 10 * 1024 * 1024  # 10MB
 
 s3 = boto3.client(
     's3',
-    endpoint_url='http://localhost:4566',
+    endpoint_url='http://172.17.0.1:4566',
     region_name='us-east-1',
     aws_access_key_id='test',
     aws_secret_access_key='test',
