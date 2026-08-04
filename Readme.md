@@ -123,8 +123,8 @@ real serverless function or short-lived container would still be alive.
 (`pip install awscli-local`).
 
 ```bash
-git clone 
-cd 
+git clone https://github.com/Merwyn-Prince-Lobo/ephemeralguard
+cd ephemeralguard
 
 pip install -r requirements.txt --break-system-packages
 ```
